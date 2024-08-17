@@ -1,0 +1,84 @@
+Workflow for DNA Methylation Analysis in Lily
+1. Install and Load Necessary Packages
+
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+# Install required Bioconductor packages
+BiocManager::install(c("minfi", "limma", "IlluminaHumanMethylationEPICmanifest", "IlluminaHumanMethylationEPICanno.ilm10b4.hg19"))
+
+# Load the libraries
+library(minfi)
+library(limma)
+library(IlluminaHumanMethylationEPICmanifest)
+library(IlluminaHumanMethylationEPICanno.ilm10b4.hg19) # Note: For lily, the annotation might be custom or not available, so some steps may need adaptation.
+
+
+Load and Preprocess Data
+
+# Assuming you have a target file with sample information
+# Load the IDAT files
+targets <- read.metharray.sheet("path/to/your/data")
+rgSet <- read.metharray.exp(targets = targets)
+
+# Preprocess the data (Normalization)
+mSet <- preprocessSWAN(rgSet)
+
+# Calculate beta values (proportion of methylation)
+betaValues <- getBeta(mSet)
+
+# Perform quality control
+qc <- qcReport(mSet)
+
+# Visualize the distribution of beta values
+densityPlot(betaValues, main = "Beta Values Distribution")
+
+
+Differential Methylation Analysis
+
+# Example: Define the experimental design
+# Replace 'condition' with your actual column name from pData
+design <- model.matrix(~ condition, data = pData(mSet))
+
+# Fit the linear model
+fit <- lmFit(betaValues, design)
+
+# Apply empirical Bayes smoothing
+fit <- eBayes(fit)
+
+# Extract differentially methylated positions (DMPs)
+topTable <- topTable(fit, coef = "condition", number = Inf, adjust.method = "BH", p.value = 0.05)
+
+# Visualize top DMPs (optional)
+plotDMP(betaValues, topTable)
+
+
+Visualization of Methylation Data
+
+
+
+# Heatmap of top differentially methylated positions
+library(pheatmap)
+topProbes <- rownames(topTable)[1:50]  # Select top 50 DMPs for visualization
+pheatmap(betaValues[topProbes, ], cluster_rows = TRUE, cluster_cols = TRUE, show_rownames = FALSE)
+
+# Optional: Plot beta values for a specific probe
+probe <- "cg00000029"  # Replace with a specific probe ID
+boxplot(betaValues[probe, ] ~ pData(mSet)$condition, main = paste("Methylation levels of", probe))
+
+
+# Heatmap of top differentially methylated positions
+library(pheatmap)
+topProbes <- rownames(topTable)[1:50]  # Select top 50 DMPs for visualization
+pheatmap(betaValues[topProbes, ], cluster_rows = TRUE, cluster_cols = TRUE, show_rownames = FALSE)
+
+# Optional: Plot beta values for a specific probe
+probe <- "cg00000029"  # Replace with a specific probe ID
+boxplot(betaValues[probe, ] ~ pData(mSet)$condition, main = paste("Methylation levels of", probe))
+
+
+
+# Annotate DMPs (if annotations are available for lily)
+# Using example annotation from human; replace with relevant data for lily
+annotation <- getAnnotation(IlluminaHumanMethylationEPICanno.ilm10b4.hg19)
+annotatedDMPs <- cbind(topTable, annotation[rownames(topTable), ])
